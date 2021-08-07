@@ -1,11 +1,15 @@
 const robot = require('robotjs');
 const os = require('os');
 const dgram = require('dgram');
+const ChildProcess = require('child_process');
+const Path = require('path');
+
+const config = require(Path.resolve('mousemaster.config'))
 
 const server = dgram.createSocket('udp4');
 const client = dgram.createSocket('udp4');
 
-let mouseInHere = false;
+let mouseHere = false;
 
 
 // 获取本机ip地址
@@ -25,12 +29,20 @@ try {
 
 client.on('message', (message, _info) => {
   const messageIp = message.toString().split(' ')[0];
-  if(mouseInHere === false && messageIp === ip) {
-    mouseInHere = true;
-    console.log(messageIp,'here')
-  }
-  if(mouseInHere === true && messageIp !== ip) {
-    mouseInHere = false;
+
+  if (messageIp === ip) {
+    if (!mouseHere) {
+      console.log('mouse moved in');
+      mouseHere = true;
+      const cp = ChildProcess.spawn(config.command, config.args);
+      cp.on('exit', (code) => {
+        console.log('exit code', code)
+      })
+    }
+  } else {
+    if (mouseHere) {
+      mouseHere = false;
+    }
   }
 })
 server.bind(1210, () => {
