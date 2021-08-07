@@ -5,6 +5,8 @@ const dgram = require('dgram');
 const server = dgram.createSocket('udp4');
 const client = dgram.createSocket('udp4');
 
+let mouseInHere = false;
+
 
 // 获取本机ip地址
 let ip = 'localhost';
@@ -22,7 +24,9 @@ try {
 }
 
 client.on('message', (message, _info) => {
-  console.log(message.toString())
+  const messageIp = message.toString().split(' ')[0];
+  mouseInHere = (messageIp === ip);
+  console.log(messageIp, mouseInHere)
 })
 server.bind(1210, () => {
   server.setBroadcast(true);
@@ -40,5 +44,5 @@ const timer = setInterval(() => {
   } else {
     return;
   }
-}, 500)
+}, 1000)
 
