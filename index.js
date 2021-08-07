@@ -25,8 +25,13 @@ try {
 
 client.on('message', (message, _info) => {
   const messageIp = message.toString().split(' ')[0];
-  mouseInHere = (messageIp === ip);
-  console.log(messageIp, mouseInHere)
+  if(mouseInHere === false && messageIp === ip) {
+    mouseInHere = true;
+    console.log(messageIp,'here')
+  }
+  if(mouseInHere === true && messageIp !== ip) {
+    mouseInHere = false;
+  }
 })
 server.bind(1210, () => {
   server.setBroadcast(true);
