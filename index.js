@@ -81,7 +81,7 @@ setInterval(() => {
   let mousePosition = RobotJS.getMousePos();
 
   if (
-    mousePosition.x === lastMousePosition &&
+    mousePosition.x === lastMousePosition.x &&
     mousePosition.y === lastMousePosition.y
   ) {
     return;
