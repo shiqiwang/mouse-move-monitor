@@ -13,11 +13,14 @@ const CONFIG_FILE_NAME = 'mousemaster.config';
 const {
   group: GROUP = 'default',
   port: PORT = 10047,
+  machines: MACHINES,
   command: COMMAND,
   args: ARGS = [],
 } = require(Path.resolve(CONFIG_FILE_NAME));
 
 console.info(`\
+MACHINE:
+  id: ${MACHINE_ID}
 CONFIG:
   group: ${GROUP}
   port: ${PORT}
@@ -30,7 +33,6 @@ const MESSAGE = `${MAGIC_PREFIX}${JSON.stringify({
   machine: MACHINE_ID,
 })}`;
 
-const client = DGram.createSocket('udp4');
 const server = DGram.createSocket('udp4');
 
 let captured = false;
@@ -55,25 +57,17 @@ server.on('message', data => {
   }
 
   if (message.machine === MACHINE_ID) {
-    if (!captured) {
-      captured = true;
+    return;
+  }
 
-      console.info('captured.');
-
-      ChildProcess.spawn(COMMAND, ARGS).on('exit', code => {
-        console.log(`command exit with code ${code}.`);
-      });
-    }
-  } else {
-    if (captured) {
-      captured = false;
-    }
+  if (captured) {
+    captured = false;
   }
 });
 
-client.bind(() => client.setBroadcast(true));
-
 server.bind(PORT);
+
+const client = DGram.createSocket('udp4');
 
 let lastMousePosition = RobotJS.getMousePos();
 
@@ -89,5 +83,17 @@ setInterval(() => {
 
   lastMousePosition = mousePosition;
 
-  client.send(MESSAGE, 0, MESSAGE.length, PORT, '255.255.255.255');
+  if (!captured) {
+    captured = true;
+
+    console.info('captured.');
+
+    ChildProcess.spawn(COMMAND, ARGS).on('exit', code => {
+      console.log(`command exit with code ${code}.`);
+    });
+  }
+
+  for (let machine of MACHINES) {
+    client.send(MESSAGE, PORT, machine);
+  }
 }, 1000);
