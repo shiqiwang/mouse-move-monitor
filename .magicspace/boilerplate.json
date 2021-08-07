@@ -1,0 +1,8 @@
+{
+  "extends": "@mufan/code-boilerplates/general",
+  "options": {
+    "name": "mousemaster",
+    "license": "MIT",
+    "author": "Shiqi Wang"
+  }
+}

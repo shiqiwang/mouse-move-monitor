@@ -1,15 +1,18 @@
 {
-  "name": "mouse-move-monitor",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "mousemaster",
+  "version": "0.0.0",
+  "license": "MIT",
+  "author": "Shiqi Wang",
+  "scripts": {
+    "lint": "eslint .",
+    "lint-prettier": "prettier --check .",
+    "test": "yarn lint-prettier && yarn lint"
+  },
   "dependencies": {
     "robotjs": "^0.6.0"
   },
-  "devDependencies": {},
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "ISC"
+  "devDependencies": {
+    "eslint": "^7.32.0",
+    "prettier": "^2.3.2"
+  }
 }
