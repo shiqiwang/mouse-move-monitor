@@ -1,65 +1,93 @@
-const robot = require('robotjs');
-const os = require('os');
-const dgram = require('dgram');
 const ChildProcess = require('child_process');
+const DGram = require('dgram');
 const Path = require('path');
 
-const config = require(Path.resolve('mousemaster.config'))
+const RobotJS = require('robotjs');
+const UUID = require('uuid');
 
-const server = dgram.createSocket('udp4');
-const client = dgram.createSocket('udp4');
+const MAGIC_PREFIX = 'mousemaster';
+const MACHINE_ID = UUID.v1();
 
-let mouseHere = false;
+const CONFIG_FILE_NAME = 'mousemaster.config';
 
+const {
+  group: GROUP = 'default',
+  port: PORT = 10047,
+  command: COMMAND,
+  args: ARGS = [],
+} = require(Path.resolve(CONFIG_FILE_NAME));
 
-// 获取本机ip地址
-let ip = 'localhost';
-try {
-  const interfaces = os.networkInterfaces();
-  for (let dev in interfaces) {
-    interfaces[dev].forEach((details, _alias) => {
-      if (details.family === 'IPv4' && details.address !== '127.0.0.1' && !details.internal) {
-        ip = details.address;
-      }
-    });
-  }
-} catch (error) {
-  console.log(`get ip address error: ${error}`);
-}
+console.info(`\
+CONFIG:
+  group: ${GROUP}
+  port: ${PORT}
+  command: ${COMMAND}
+  args: ${ARGS}
+`);
 
-client.on('message', (message, _info) => {
-  const messageIp = message.toString().split(' ')[0];
+const MESSAGE = `${MAGIC_PREFIX}${JSON.stringify({
+  group: GROUP,
+  machine: MACHINE_ID,
+})}`;
 
-  if (messageIp === ip) {
-    if (!mouseHere) {
-      console.log('mouse moved in');
-      mouseHere = true;
-      const cp = ChildProcess.spawn(config.command, config.args);
-      cp.on('exit', (code) => {
-        console.log('exit code', code)
-      })
-    }
-  } else {
-    if (mouseHere) {
-      mouseHere = false;
-    }
-  }
-})
-server.bind(1210, () => {
-  server.setBroadcast(true);
-});
-client.bind(1212);
+const client = DGram.createSocket('udp4');
+const server = DGram.createSocket('udp4');
 
+let captured = false;
 
-let lastMousePosition = robot.getMousePos();
-let message = `${ip} mousemove`;
-const timer = setInterval(() => {
-  const mousePosition = robot.getMousePos();
-  if(lastMousePosition.x !== mousePosition.x || lastMousePosition.y !== mousePosition.y) {
-    lastMousePosition = mousePosition;
-    server.send(message, 0, message.length, 1212, '255.255.255.255');
-  } else {
+server.on('message', data => {
+  if (data.slice(0, MAGIC_PREFIX.length).toString() !== MAGIC_PREFIX) {
+    console.warn('magic prefix mismatch.');
     return;
   }
-}, 1000)
 
+  let message;
+
+  try {
+    message = JSON.parse(data.slice(MAGIC_PREFIX.length).toString());
+  } catch {
+    console.warn('broken message.');
+    return;
+  }
+
+  if (message.group !== GROUP) {
+    return;
+  }
+
+  if (message.machine === MACHINE_ID) {
+    if (!captured) {
+      captured = true;
+
+      console.info('captured.');
+
+      ChildProcess.spawn(COMMAND, ARGS).on('exit', code => {
+        console.log(`command exit with code ${code}.`);
+      });
+    }
+  } else {
+    if (captured) {
+      captured = false;
+    }
+  }
+});
+
+client.bind(() => client.setBroadcast(true));
+
+server.bind(PORT);
+
+let lastMousePosition = RobotJS.getMousePos();
+
+setInterval(() => {
+  let mousePosition = RobotJS.getMousePos();
+
+  if (
+    mousePosition.x === lastMousePosition &&
+    mousePosition.y === lastMousePosition.y
+  ) {
+    return;
+  }
+
+  lastMousePosition = mousePosition;
+
+  client.send(MESSAGE, 0, MESSAGE.length, PORT, '255.255.255.255');
+}, 1000);

@@ -9,7 +9,8 @@
     "test": "yarn lint-prettier && yarn lint"
   },
   "dependencies": {
-    "robotjs": "^0.6.0"
+    "robotjs": "^0.6.0",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "eslint": "^7.32.0",
