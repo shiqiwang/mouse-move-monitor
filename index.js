@@ -77,17 +77,22 @@ const client = DGram.createSocket('udp4');
 
 let lastMousePosition = RobotJS.getMousePos();
 
+let continuousChanges = 0;
+
 setInterval(() => {
   let mousePosition = RobotJS.getMousePos();
 
-  if (
-    mousePosition.x === lastMousePosition.x &&
-    mousePosition.y === lastMousePosition.y
-  ) {
+  if (isPositionEqualTo(mousePosition, lastMousePosition)) {
+    continuousChanges = 0;
     return;
   }
 
   lastMousePosition = mousePosition;
+  continuousChanges++;
+
+  if (continuousChanges < 2) {
+    return;
+  }
 
   if (!captured && mouseLostAt + MOUSE_CAPTURE_DEBOUNCE_TIMEOUT > Date.now()) {
     return;
@@ -106,4 +111,8 @@ setInterval(() => {
   for (let machine of MACHINES) {
     client.send(MESSAGE, PORT, machine);
   }
-}, 1000);
+}, 200);
+
+function isPositionEqualTo(p1, p2) {
+  return p1.x === p2.x && p1.y === p2.y;
+}
