@@ -69,7 +69,9 @@ server.on('message', data => {
   }
 });
 
-server.bind(PORT);
+server.bind(PORT, () => {
+  console.info(`listening on port ${server.address().port}.`);
+});
 
 const client = DGram.createSocket('udp4');
 
@@ -97,7 +99,7 @@ setInterval(() => {
     console.info('captured.');
 
     ChildProcess.spawn(COMMAND, ARGS).on('exit', code => {
-      console.log(`command exit with code ${code}.`);
+      console.info(`command exit with code ${code}.`);
     });
   }
 
