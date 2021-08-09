@@ -8,6 +8,8 @@ const UUID = require('uuid');
 const MAGIC_PREFIX = 'mousemaster';
 const MACHINE_ID = UUID.v1();
 
+const MOUSE_CAPTURE_DEBOUNCE_TIMEOUT = 3000;
+
 const CONFIG_FILE_NAME = 'mousemaster.config';
 
 const {
@@ -36,6 +38,7 @@ const MESSAGE = `${MAGIC_PREFIX}${JSON.stringify({
 const server = DGram.createSocket('udp4');
 
 let captured = false;
+let mouseLostAt = 0;
 
 server.on('message', data => {
   if (data.slice(0, MAGIC_PREFIX.length).toString() !== MAGIC_PREFIX) {
@@ -62,6 +65,7 @@ server.on('message', data => {
 
   if (captured) {
     captured = false;
+    mouseLostAt = Date.now();
   }
 });
 
@@ -82,6 +86,10 @@ setInterval(() => {
   }
 
   lastMousePosition = mousePosition;
+
+  if (!captured && mouseLostAt + MOUSE_CAPTURE_DEBOUNCE_TIMEOUT > Date.now()) {
+    return;
+  }
 
   if (!captured) {
     captured = true;
