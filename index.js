@@ -75,6 +75,8 @@ server.bind(PORT, () => {
 
 const client = DGram.createSocket('udp4');
 
+let pendingMachineSet = new Set();
+
 let lastMousePosition = RobotJS.getMousePos();
 
 let continuousChanges = 0;
@@ -109,9 +111,21 @@ setInterval(() => {
   }
 
   for (let machine of MACHINES) {
-    client.send(MESSAGE, PORT, machine);
+    if (pendingMachineSet.has(machine)) {
+      continue;
+    }
+
+    pendingMachineSet.add(machine);
+
+    client.send(MESSAGE, PORT, machine, error => {
+      pendingMachineSet.delete(machine);
+
+      if (error) {
+        console.error(error.message);
+      }
+    });
   }
-}, 200);
+}, 500);
 
 function isPositionEqualTo(p1, p2) {
   return p1.x === p2.x && p1.y === p2.y;
