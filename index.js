@@ -97,8 +97,6 @@ setInterval(() => {
     return;
   }
 
-  console.log(mousePosition.x, mousePosition.y);
-
   lastMousePosition = mousePosition;
 
   if (!captured && mouseLostAt + MOUSE_CAPTURE_DEBOUNCE_TIMEOUT > Date.now()) {
