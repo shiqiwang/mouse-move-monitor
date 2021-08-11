@@ -79,22 +79,22 @@ let pendingMachineSet = new Set();
 
 let lastMousePosition = RobotJS.getMousePos();
 
-let continuousChanges = 0;
-
 setInterval(() => {
   let mousePosition = RobotJS.getMousePos();
 
+  if (
+    Math.max(Math.abs(mousePosition.x), Math.abs(mousePosition.y)) >
+    2 ** 30
+  ) {
+    // Invalid position.
+    return;
+  }
+
   if (isPositionEqualTo(mousePosition, lastMousePosition)) {
-    continuousChanges = 0;
     return;
   }
 
   lastMousePosition = mousePosition;
-  continuousChanges++;
-
-  if (continuousChanges < 2) {
-    return;
-  }
 
   if (!captured && mouseLostAt + MOUSE_CAPTURE_DEBOUNCE_TIMEOUT > Date.now()) {
     return;
