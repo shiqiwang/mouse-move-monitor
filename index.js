@@ -9,6 +9,7 @@ const MAGIC_PREFIX = 'mousemaster';
 const MACHINE_ID = UUID.v1();
 
 const MOUSE_CAPTURE_DEBOUNCE_TIMEOUT = 3000;
+const MOUSE_VALID_POSITION_LIMIT = 100000;
 
 const CONFIG_FILE_NAME = 'mousemaster.config';
 
@@ -66,6 +67,8 @@ server.on('message', data => {
   if (captured) {
     captured = false;
     mouseLostAt = Date.now();
+
+    console.info('no longer captured.');
   }
 });
 
@@ -84,7 +87,7 @@ setInterval(() => {
 
   if (
     Math.max(Math.abs(mousePosition.x), Math.abs(mousePosition.y)) >
-    2 ** 30
+    MOUSE_VALID_POSITION_LIMIT
   ) {
     // Invalid position.
     return;
@@ -93,6 +96,8 @@ setInterval(() => {
   if (isPositionEqualTo(mousePosition, lastMousePosition)) {
     return;
   }
+
+  console.log(mousePosition.x, mousePosition.y);
 
   lastMousePosition = mousePosition;
 
