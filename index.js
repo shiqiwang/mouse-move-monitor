@@ -1,14 +1,16 @@
 const ChildProcess = require('child_process');
-const DGram = require('dgram');
+const HTTP = require('http');
 const Path = require('path');
 
+const {main} = require('main-function');
+const {default: fetch} = require('node-fetch');
 const RobotJS = require('robotjs');
 const UUID = require('uuid');
 
-const MAGIC_PREFIX = 'mousemaster';
 const MACHINE_ID = UUID.v1();
 
-const MOUSE_CAPTURE_DEBOUNCE_TIMEOUT = 3000;
+const MOUSE_GET_CAPTURE_DEBOUNCE_TIMEOUT = 200;
+const MOUSE_LOST_CAPTURE_DEBOUNCE_TIMEOUT = 0;
 const MOUSE_VALID_POSITION_LIMIT = 100000;
 
 const CONFIG_FILE_NAME = 'mousemaster.config';
@@ -21,7 +23,13 @@ const {
   args: ARGS = [],
 } = require(Path.resolve(CONFIG_FILE_NAME));
 
-console.info(`\
+const QUERY = new URLSearchParams({
+  group: GROUP,
+  machine: MACHINE_ID,
+}).toString();
+
+main(async () => {
+  console.info(`\
 MACHINE:
   id: ${MACHINE_ID}
 CONFIG:
@@ -31,104 +39,111 @@ CONFIG:
   args: ${ARGS}
 `);
 
-const MESSAGE = `${MAGIC_PREFIX}${JSON.stringify({
-  group: GROUP,
-  machine: MACHINE_ID,
-})}`;
+  let mouseCapturedAt = 0;
+  let mouseLostAt = 0;
 
-const server = DGram.createSocket('udp4');
+  const server = HTTP.createServer((request, response) => {
+    response.end();
 
-let captured = false;
-let mouseLostAt = 0;
+    let params = new URL(request.url, `http://${request.headers.host}`)
+      .searchParams;
 
-server.on('message', data => {
-  if (data.slice(0, MAGIC_PREFIX.length).toString() !== MAGIC_PREFIX) {
-    console.warn('magic prefix mismatch.');
-    return;
-  }
+    console.log({GROUP, MACHINE_ID});
+    console.log(
+      params.get('group'),
+      params.get('machine'),
+      params.get('machine') === MACHINE_ID,
+    );
 
-  let message;
+    if (params.get('group') !== GROUP) {
+      return;
+    }
 
-  try {
-    message = JSON.parse(data.slice(MAGIC_PREFIX.length).toString());
-  } catch {
-    console.warn('broken message.');
-    return;
-  }
+    if (params.get('machine') === MACHINE_ID) {
+      return;
+    }
 
-  if (message.group !== GROUP) {
-    return;
-  }
+    let now = Date.now();
 
-  if (message.machine === MACHINE_ID) {
-    return;
-  }
+    if (
+      mouseCapturedAt > 0 &&
+      mouseCapturedAt + MOUSE_GET_CAPTURE_DEBOUNCE_TIMEOUT < Date.now()
+    ) {
+      mouseCapturedAt = 0;
+      mouseLostAt = now;
 
-  if (captured) {
-    captured = false;
-    mouseLostAt = Date.now();
+      console.info('no longer captured.');
+    }
+  });
 
-    console.info('no longer captured.');
-  }
-});
+  server.listen(PORT, () => {
+    console.info(`listening on port ${server.address().port}.`);
+  });
 
-server.bind(PORT, () => {
-  console.info(`listening on port ${server.address().port}.`);
-});
+  let pendingMachineSet = new Set();
 
-const client = DGram.createSocket('udp4');
+  let lastMousePosition = RobotJS.getMousePos();
 
-let pendingMachineSet = new Set();
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    let mousePosition = RobotJS.getMousePos();
 
-let lastMousePosition = RobotJS.getMousePos();
-
-setInterval(() => {
-  let mousePosition = RobotJS.getMousePos();
-
-  if (
-    Math.max(Math.abs(mousePosition.x), Math.abs(mousePosition.y)) >
-    MOUSE_VALID_POSITION_LIMIT
-  ) {
-    // Invalid position.
-    return;
-  }
-
-  if (isPositionEqualTo(mousePosition, lastMousePosition)) {
-    return;
-  }
-
-  lastMousePosition = mousePosition;
-
-  if (!captured && mouseLostAt + MOUSE_CAPTURE_DEBOUNCE_TIMEOUT > Date.now()) {
-    return;
-  }
-
-  if (!captured) {
-    captured = true;
-
-    console.info('captured.');
-
-    ChildProcess.spawn(COMMAND, ARGS).on('exit', code => {
-      console.info(`command exit with code ${code}.`);
-    });
-  }
-
-  for (let machine of MACHINES) {
-    if (pendingMachineSet.has(machine)) {
+    if (
+      Math.max(Math.abs(mousePosition.x), Math.abs(mousePosition.y)) >
+      MOUSE_VALID_POSITION_LIMIT
+    ) {
+      // Invalid position.
       continue;
     }
 
-    pendingMachineSet.add(machine);
+    if (isPositionEqualTo(mousePosition, lastMousePosition)) {
+      continue;
+    }
 
-    client.send(MESSAGE, PORT, machine, error => {
-      pendingMachineSet.delete(machine);
+    lastMousePosition = mousePosition;
 
-      if (error) {
-        console.error(error.message);
-      }
-    });
+    let now = Date.now();
+
+    if (
+      mouseCapturedAt === 0 &&
+      mouseLostAt + MOUSE_LOST_CAPTURE_DEBOUNCE_TIMEOUT > now
+    ) {
+      continue;
+    }
+
+    if (mouseCapturedAt === 0) {
+      mouseCapturedAt = now;
+
+      console.info('captured.');
+
+      ChildProcess.spawn(COMMAND, ARGS).on('exit', code => {
+        console.info(`command exit with code ${code}.`);
+      });
+    }
+
+    await Promise.all([
+      ...MACHINES.map(async machine => {
+        if (pendingMachineSet.has(machine)) {
+          return;
+        }
+
+        pendingMachineSet.add(machine);
+
+        let hostname = /:\d+$/.test(machine) ? machine : `${machine}:${PORT}`;
+
+        try {
+          await fetch(`http://${hostname}/?${QUERY}`);
+        } catch (error) {
+          console.error(`error notifying ${machine}.`);
+          console.error(error.message);
+        } finally {
+          pendingMachineSet.delete(machine);
+        }
+      }),
+      new Promise(resolve => setTimeout(resolve, 500)),
+    ]);
   }
-}, 500);
+});
 
 function isPositionEqualTo(p1, p2) {
   return p1.x === p2.x && p1.y === p2.y;

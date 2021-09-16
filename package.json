@@ -9,6 +9,8 @@
     "test": "yarn lint-prettier && yarn lint"
   },
   "dependencies": {
+    "main-function": "^0.1.2",
+    "node-fetch": "2",
     "robotjs": "^0.6.0",
     "uuid": "^8.3.2"
   },
