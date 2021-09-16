@@ -48,13 +48,6 @@ CONFIG:
     let params = new URL(request.url, `http://${request.headers.host}`)
       .searchParams;
 
-    console.log({GROUP, MACHINE_ID});
-    console.log(
-      params.get('group'),
-      params.get('machine'),
-      params.get('machine') === MACHINE_ID,
-    );
-
     if (params.get('group') !== GROUP) {
       return;
     }
